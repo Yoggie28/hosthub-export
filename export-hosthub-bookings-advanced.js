@@ -19,8 +19,8 @@ const api = axios.create({
 
 // Convert cents to money
 function money(value) {
-  if (!value || value.cents == null) return "";
-  return (value.cents / 100).toFixed(2);
+  if (!value || value.cents == null) return 0;
+  return value.cents / 100;
 }
 
 // Map source names to human-readable channels
@@ -95,12 +95,15 @@ async function main() {
 
   const events = await fetchAll(`/rentals/${rental.id}/calendar-events`);
 
-  const bookings = events.filter(e => 
+  let bookings = events.filter(e => 
     e.type === "Booking" &&
     e.is_visible &&
     new Date(e.date_from).getFullYear() === year &&
     (!month || new Date(e.date_from).getMonth() + 1 === month)
   );
+
+  // Sort by Check-in ascending
+  bookings.sort((a, b) => new Date(a.date_from) - new Date(b.date_from));
 
   if (bookings.length === 0) {
     console.log("  ↳ No bookings found for this month/year.");
@@ -118,25 +121,25 @@ async function main() {
     { header: "Check-in", width: 12 },
     { header: "Check-out", width: 12 },
     { header: "Nights", width: 8 },
-    { header: "Booking Value", width: 15 },
-    { header: "Cleaning Fee", width: 15 },
-    { header: "Taxes", width: 15 },
-    { header: "Guest Paid", width: 15 },
-    { header: "Host Payout", width: 15 },
-    { header: "VAT", width: 12 },
-    { header: "Climate Tax", width: 15 },
-    { header: "Accommodation Tax", width: 18 },
-    { header: "AADE Value", width: 15 },
+    { header: "Total Value", width: 15, style: { numFmt: "#,##0.00" } },
+    { header: "Cleaning Fee", width: 15, style: { numFmt: "#,##0.00" } },
+    { header: "Taxes", width: 15, style: { numFmt: "#,##0.00" } },
+    { header: "Guest Paid", width: 15, style: { numFmt: "#,##0.00" } },
+    { header: "Host Payout", width: 15, style: { numFmt: "#,##0.00" } },
+    { header: "VAT", width: 12, style: { numFmt: "#,##0.00" } },
+    { header: "Climate Tax", width: 15, style: { numFmt: "#,##0.00" } },
+    { header: "Accommodation Tax", width: 18, style: { numFmt: "#,##0.00" } },
+    { header: "AADE Value", width: 15, style: { numFmt: "#,##0.00" } },
     { header: "Currency", width: 10 },
     { header: "Channel", width: 15 },
   ];
 
-  // Totals
-  let totalGuestPaid = 0;
-  let totalHostPayout = 0;
-  let totalBookingValue = 0;
+  // Totals accumulators
+  let totalValue = 0;
   let totalCleaningFee = 0;
   let totalTaxes = 0;
+  let totalGuestPaid = 0;
+  let totalHostPayout = 0;
 
   for (const b of bookings) {
     const tax = await fetchGreekTaxes(b.id);
@@ -147,7 +150,7 @@ async function main() {
       b.date_from,
       b.date_to,
       b.nights,
-      money(b.booking_value),
+      money(b.total_value), // <-- total value instead of booking value
       money(b.cleaning_fee),
       money(b.taxes),
       money(b.guest_paid),
@@ -160,24 +163,29 @@ async function main() {
       getChannel(b.source),
     ];
 
-    totalGuestPaid += b.guest_paid?.cents || 0;
-    totalHostPayout += b.total_payout?.cents || 0;
-    totalBookingValue += b.booking_value?.cents || 0;
-    totalCleaningFee += b.cleaning_fee?.cents || 0;
-    totalTaxes += b.taxes?.cents || 0;
+    totalValue += money(b.total_value);
+    totalCleaningFee += money(b.cleaning_fee);
+    totalTaxes += money(b.taxes);
+    totalGuestPaid += money(b.guest_paid);
+    totalHostPayout += money(b.total_payout);
 
     sheet.addRow(rowValues);
   }
 
-  // Totals row
+  // Add totals row with formulas
+  const lastRowNumber = sheet.rowCount;
   sheet.addRow([
     "TOTALS", "", "", "", "",
-    (totalBookingValue / 100).toFixed(2),
-    (totalCleaningFee / 100).toFixed(2),
-    (totalTaxes / 100).toFixed(2),
-    (totalGuestPaid / 100).toFixed(2),
-    (totalHostPayout / 100).toFixed(2),
-    "", "", "", "", "", ""
+    { formula: `SUM(F2:F${lastRowNumber})`, style: { numFmt: "#,##0.00" } },
+    { formula: `SUM(G2:G${lastRowNumber})`, style: { numFmt: "#,##0.00" } },
+    { formula: `SUM(H2:H${lastRowNumber})`, style: { numFmt: "#,##0.00" } },
+    { formula: `SUM(I2:I${lastRowNumber})`, style: { numFmt: "#,##0.00" } },
+    { formula: `SUM(J2:J${lastRowNumber})`, style: { numFmt: "#,##0.00" } },
+    { formula: `SUM(K2:K${lastRowNumber})`, style: { numFmt: "#,##0.00" } },
+    { formula: `SUM(L2:L${lastRowNumber})`, style: { numFmt: "#,##0.00" } },
+    { formula: `SUM(M2:M${lastRowNumber})`, style: { numFmt: "#,##0.00" } },
+    { formula: `SUM(N2:N${lastRowNumber})`, style: { numFmt: "#,##0.00" } },
+    "", ""
   ]);
 
   const safeName = rental.name.replace(/[\/\\:*?"<>|]/g, "");
