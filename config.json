@@ -1,0 +1,5 @@
+{
+  "CityDen": { "cleaningFee": 25, "commissionPercent": 8 },
+  "Emalyn": { "cleaningFee": 40, "commissionPercent": 10 },
+  "SKY 5 Luxury Apartment": { "cleaningFee": 40, "commissionPercent": 8 }
+}
