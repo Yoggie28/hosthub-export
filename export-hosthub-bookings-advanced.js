@@ -43,8 +43,11 @@ function formatDate(dateStr) {
 // Map source names to human-readable channels
 function getChannel(source) {
   if (!source || !source.name) return "Offline";
-  if (source.name.toLowerCase().includes("cityden2")) return "Booking";
-  if (source.name.toLowerCase().includes("cityden")) return "Airbnb";
+
+  const name = source.name.toString().trim();
+  if (name.endsWith("1")) return "Airbnb";
+  if (name.endsWith("2")) return "Booking";
+
   return "Offline";
 }
 
@@ -138,7 +141,6 @@ async function main() {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Bookings");
 
-  // Columns (no per-row Grand Total)
   sheet.columns = [
     { header: "Channel", width: 15 },
     { header: "Check-in → Check-out", width: 25 },
@@ -165,8 +167,9 @@ async function main() {
     const climateTax = channel === "Offline" ? 0 : money(tax?.climate_tax);
     const totalVal = money(b.total_value);
 
-    const commissionAmount = totalVal - climateTax - cleaningFee;
-    const commission = commissionAmount * (config.commissionPercent / 100);
+    // Commission only if totalVal > 0
+    const commissionAmount = totalVal > 0 ? totalVal - climateTax - cleaningFee : 0;
+    const commission = totalVal > 0 ? commissionAmount * (config.commissionPercent / 100) : 0;
 
     totalValue += totalVal;
     totalClimateTax += climateTax;
